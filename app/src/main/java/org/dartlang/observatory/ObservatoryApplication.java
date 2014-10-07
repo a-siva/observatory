@@ -13,7 +13,9 @@ import org.dartlang.service.VM;
  * Created by johnmccutchan on 10/4/14.
  */
 public class ObservatoryApplication extends Application {
-  private VM vm;
+  protected VM vm;
+
+  VM getVM() { return vm; }
 
   @Override
   public void onConfigurationChanged(Configuration newConfig) {
@@ -24,7 +26,6 @@ public class ObservatoryApplication extends Application {
   @Override
   public void onCreate() {
     Logger.info("ObservatoryApplication.onCreate");
-    vm = new VM(this, "ws://10.0.2.2:8181/ws");
     super.onCreate();
   }
 

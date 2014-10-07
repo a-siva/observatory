@@ -7,6 +7,8 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.EditText;
 
+import org.dartlang.service.VM;
+
 
 public class Connect extends Activity {
   private String address = "10.0.2.2:8181";
@@ -21,10 +23,34 @@ public class Connect extends Activity {
       @Override
       public void onClick(View view) {
         addressEditText.setText(address);
+        addressEditText.setSelection(address.length());
       }
     });
+
+    ObservatoryApplication app = (ObservatoryApplication)getApplication();
+    if (app.getVM() != null) {
+      // Have a VM.
+      return;
+    }
+    connectToVM(address);
   }
 
+
+  private void connectToVM(String address) {
+    if (!address.startsWith("ws://")) {
+      address = "ws://" + address + "/ws";
+    }
+    ObservatoryApplication app = (ObservatoryApplication)getApplication();
+    VM vm = app.getVM();
+    if (vm != null) {
+      vm.disconnect();
+    }
+    VM vm = new VM(app, address);
+  }
+
+  public void connect(View view) {
+    connectToVM(address);
+  }
 
   @Override
   public boolean onCreateOptionsMenu(Menu menu) {

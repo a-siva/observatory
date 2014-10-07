@@ -46,7 +46,9 @@ public class VM extends WebSocketHandler implements Owner {
   }
 
   public void disconnect() {
-    webSocket.disconnect();
+    if (webSocket.isConnected()) {
+      webSocket.disconnect();
+    }
   }
 
   public void onOpen() {
