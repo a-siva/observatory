@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="org.dartlang.observatory" >
-    <uses-permission android:name="android.permission.INTERNET"/>
+
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
+        android:name=".ObservatoryApplication"
         android:allowBackup="true"
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"
-        android:name="ObservatoryApplication"
         android:theme="@style/AppTheme" >
         <activity
             android:name=".Connect"
@@ -17,6 +18,14 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
+        <activity
+            android:name=".VMView"
+            android:label="@string/title_activity_vm"
+            android:parentActivityName=".Connect" >
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value="org.dartlang.observatory.Connect" />
         </activity>
     </application>
 

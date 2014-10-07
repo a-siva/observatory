@@ -1,7 +1,6 @@
 package org.dartlang.service;
 
 import org.dartlang.observatory.Logger;
-import org.dartlang.observatory.ObservatoryApplication;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -19,21 +18,30 @@ import de.tavendo.autobahn.WebSocketHandler;
 public class VM extends WebSocketHandler implements Owner {
   private final WebSocketConnection webSocket = new WebSocketConnection();
   public final String uri;
-  public final ObservatoryApplication app;
+  public final EventListener listener;
   private final Map<String, VMRequest> pendingRequests = new HashMap<String, VMRequest>();
   private final Map<String, VMRequest> delayedRequests = new HashMap<String, VMRequest>();
   private boolean didConnect = false;
   private int requestSerial = 0;
 
+  public interface EventListener {
+    public void onConnectionFailed(final VM vm);
+    public void onConnection(final VM vm);
+    public void onConnectionLost(final VM vm);
+    public void onResponse(final VM vm, final RequestCallback callback, final Response response);
+  }
 
-  public VM(ObservatoryApplication app, String uri) {
+  public VM(EventListener listener, String uri) {
     this.uri = uri;
-    this.app = app;
+    this.listener = listener;
     try {
+      if (!uri.startsWith("ws://")) {
+        uri = "ws://" + uri + "/ws";
+      }
       webSocket.connect(uri, this);
     } catch (WebSocketException ex) {
       Logger.info("WebSocket connect call failed: " + ex.toString());
-      app.connectionFailed(this);
+      listener.onConnectionFailed(this);
     }
   }
 
@@ -56,16 +64,16 @@ public class VM extends WebSocketHandler implements Owner {
     didConnect = true;
     Logger.info("VM Connected to " + uri);
     sendAllDelayedRequests();
-    app.connected(this);
+    listener.onConnection(this);
   }
 
   public void onClose(int code, String reason) {
     Logger.info("WebSocket connection closed (code=" + Integer.toString(code) + "): " + reason);
     cancelAllRequests();
-    if (code != CLOSE_NORMAL) {
-      app.connectionFailed(this);
+    if (code == CLOSE_CANNOT_CONNECT) {
+      listener.onConnectionFailed(this);
     } else {
-      app.connectionClosed(this);
+      listener.onConnectionLost(this);
     }
   }
 
@@ -122,18 +130,23 @@ public class VM extends WebSocketHandler implements Owner {
       Logger.error("No pending request with serial: " + serial);
       return;
     }
-    request.callback.onResponse(null);
+    listener.onResponse(this, request.callback, null);
+  }
+
+  private void cancelRequest(VMRequest request) {
+    // TODO(johnmccutchan): Use something other than null to indicate a cancel/fail.
+    listener.onResponse(this, request.callback, null);
   }
 
   private void cancelAllRequests() {
     for (Map.Entry<String, VMRequest> entry : delayedRequests.entrySet()) {
       VMRequest request = entry.getValue();
-      request.cancel();
+      cancelRequest(request);
     }
     delayedRequests.clear();
     for (Map.Entry<String, VMRequest> entry : pendingRequests.entrySet()) {
       VMRequest request = entry.getValue();
-      request.cancel();
+      cancelRequest(request);
     }
     pendingRequests.clear();
   }
@@ -156,7 +169,7 @@ public class VM extends WebSocketHandler implements Owner {
         sendRequest(serial, request);
       } else {
         // Lost connection. Cancel immediately.
-        request.cancel();
+        cancelRequest(request);
       }
     } else {
       // Queue request for connection.
@@ -180,10 +193,6 @@ public class VM extends WebSocketHandler implements Owner {
     VMRequest(String id, RequestCallback callback) {
       this.id = id;
       this.callback = callback;
-    }
-
-    public void cancel() {
-      callback.onResponse(null);
     }
   }
 }

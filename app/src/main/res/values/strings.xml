@@ -6,5 +6,7 @@
     <string name="default_vm_address">10.0.2.2:8181</string>
     <string name="action_connect">Connect</string>
     <string name="action_settings">Settings</string>
+    <string name="title_activity_vm">VM</string>
+    <string name="hello_world">Hello world!</string>
 
 </resources>
