@@ -1,36 +1,72 @@
+// Copyright (c) 2014, the Dart project authors.  Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
 package org.dartlang.service;
 
-/**
- * Created by johnmccutchan on 10/4/14.
- */
-public class ServiceObject extends Response {
-  private final VM vm;
-  private String id;
-  private String type;
-  private String vmType;
-  private Isolate isolate;
-  private Owner owner;
+import org.json.JSONObject;
 
-  public ServiceObject(VM vm, Isolate isolate) {
-    this.vm = vm;
-    setIsolate(isolate);
+public class ServiceObject extends Response {
+  protected Owner owner;
+  protected String id;
+  protected String type;
+  protected String vmType;
+  private boolean loaded = false;
+
+  public boolean isLoaded() { return loaded; }
+
+  protected ServiceObject(Owner owner) {
+    setOwner(owner);
   }
 
   public VM getVM() {
-    return vm;
+    return owner.getVM();
   }
 
   public Isolate getIsolate() {
-    return isolate;
+    return owner.getIsolate();
   }
 
-  public void setIsolate(Isolate isolate) {
-    this.isolate = isolate;
-    if (this.isolate == null) {
-      this.owner = vm;
-    } else {
-      this.owner = isolate;
+  protected void setOwner(Owner owner) {
+    this.owner = owner;
+  }
+
+  public interface LoadListener {
+    public void onLoad(ServiceObject object);
+  }
+
+  protected static boolean isServiceMap(JSONObject object) {
+    if (object == null) {
+      return false;
     }
+    String id = object.optString("id");
+    String type = object.optString("type");
+    return (id != null) && (type != null);
+  }
+
+  protected static boolean hasRef(String id) {
+    return id.startsWith("@");
+  }
+
+  protected static String stripRef(String id) {
+    if (!hasRef(id)) {
+      return id;
+    }
+    return id.substring(1);
+  }
+
+  protected static ServiceObject fromMap(Owner owner, JSONObject object) {
+    return null;
+  }
+
+  public void load(LoadListener loadListener) {
+    if (isLoaded()) {
+      loadListener.onLoad(this);
+    }
+    reload(loadListener);
+  }
+
+  public void reload(LoadListener loadListener) {
   }
 
   public Owner getOwner() {

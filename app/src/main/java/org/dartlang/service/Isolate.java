@@ -1,15 +1,23 @@
+// Copyright (c) 2014, the Dart project authors.  Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
 package org.dartlang.service;
 
 import org.json.JSONObject;
 
-/**
- * Created by johnmccutchan on 10/4/14.
- */
 public class Isolate extends ServiceObject implements Owner {
   Isolate(VM vm) {
-    super(vm, null);
+    super(vm);
     assert vm != null;
-    setIsolate(this);
+  }
+
+  public VM getVM() {
+    return owner.getVM();
+  }
+
+  public Isolate getIsolate() {
+    return this;
   }
 
   public ServiceObject fromJSONObject(JSONObject obj) {

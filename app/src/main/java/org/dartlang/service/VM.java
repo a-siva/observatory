@@ -1,3 +1,7 @@
+// Copyright (c) 2014, the Dart project authors.  Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
 package org.dartlang.service;
 
 import org.dartlang.observatory.Logger;
@@ -7,22 +11,16 @@ import org.json.JSONObject;
 import java.util.HashMap;
 import java.util.Map;
 
-import de.tavendo.autobahn.WebSocketConnection;
-import de.tavendo.autobahn.WebSocketException;
-import de.tavendo.autobahn.WebSocketHandler;
-
-/**
- * Created by johnmccutchan on 10/4/14.
- */
-
-public class VM extends WebSocketHandler implements Owner {
-  private final WebSocketConnection webSocket = new WebSocketConnection();
+public class VM extends ServiceObject implements Owner {
   public final String uri;
+
+  private final VMWebSocketHandler webSocketHandler;
   public final EventListener listener;
   private final Map<String, VMRequest> pendingRequests = new HashMap<String, VMRequest>();
   private final Map<String, VMRequest> delayedRequests = new HashMap<String, VMRequest>();
-  private boolean didConnect = false;
   private int requestSerial = 0;
+
+  private boolean didConnect = false;
 
   public interface EventListener {
     public void onConnectionFailed(final VM vm);
@@ -31,35 +29,12 @@ public class VM extends WebSocketHandler implements Owner {
     public void onResponse(final VM vm, final RequestCallback callback, final Response response);
   }
 
-  public VM(EventListener listener, String uri) {
-    this.uri = uri;
-    this.listener = listener;
-    try {
-      if (!uri.startsWith("ws://")) {
-        uri = "ws://" + uri + "/ws";
-      }
-      webSocket.connect(uri, this);
-    } catch (WebSocketException ex) {
-      Logger.info("WebSocket connect call failed: " + ex.toString());
-      listener.onConnectionFailed(this);
-    }
+  protected void onConnectionFailed() {
+    cancelAllRequests();
+    listener.onConnectionLost(this);
   }
 
-  public boolean hasConnected() {
-    return didConnect;
-  }
-
-  public boolean isConnected() {
-    return webSocket.isConnected();
-  }
-
-  public void disconnect() {
-    if (webSocket.isConnected()) {
-      webSocket.disconnect();
-    }
-  }
-
-  public void onOpen() {
+  protected void onConnection() {
     assert didConnect == false;
     didConnect = true;
     Logger.info("VM Connected to " + uri);
@@ -67,50 +42,22 @@ public class VM extends WebSocketHandler implements Owner {
     listener.onConnection(this);
   }
 
-  public void onClose(int code, String reason) {
-    Logger.info("WebSocket connection closed (code=" + Integer.toString(code) + "): " + reason);
+  protected void onConnectionLost() {
     cancelAllRequests();
-    if (code == CLOSE_CANNOT_CONNECT) {
-      listener.onConnectionFailed(this);
-    } else {
-      listener.onConnectionLost(this);
+    listener.onConnectionLost(this);
+  }
+
+  class VMRequest {
+    public final String id;
+    public final RequestCallback callback;
+
+    VMRequest(String id, RequestCallback callback) {
+      this.id = id;
+      this.callback = callback;
     }
   }
 
-  public void onTextMessage(String payload) {
-    Logger.info("WebSocket got: " + payload);
-    onResponse(payload);
-  }
-
-  public void onRawTextMessage(byte[] payload) {
-    assert false;
-  }
-
-  public void onBinaryMessage(byte[] payload) {
-    assert false;
-  }
-
-  private void sendRequest(String serial, VMRequest request) {
-    // Construct JSON request.
-    //
-    JSONObject message = new JSONObject();
-    try {
-      message.put("seq", serial);
-      message.put("request", request.id);
-    } catch (JSONException ex) {
-      Logger.error("Could not create JSON for request url: " + request.id);
-      return;
-    }
-    Logger.info("Sending request to VM: " + message.toString());
-    pendingRequests.put(serial, request);
-    webSocket.sendTextMessage(message.toString());
-  }
-
-  private void delayRequest(String serial, VMRequest request) {
-    delayedRequests.put(serial, request);
-  }
-
-  private void onResponse(String response) {
+  protected void onResponse(String response) {
     JSONObject map;
 
     Logger.info("Got following from VM: " + response);
@@ -131,6 +78,46 @@ public class VM extends WebSocketHandler implements Owner {
       return;
     }
     listener.onResponse(this, request.callback, null);
+  }
+
+  public boolean hasConnected() {
+    return didConnect;
+  }
+
+  public boolean isConnected() {
+    return webSocketHandler.isConnected();
+  }
+
+  public void disconnect() {
+    webSocketHandler.disconnect();
+  }
+
+  public VM(EventListener listener, String uri) {
+    super(null);
+    setOwner(this);
+    this.uri = uri;
+    this.listener = listener;
+    webSocketHandler = new VMWebSocketHandler(this, uri);
+  }
+
+  private void sendRequest(String serial, VMRequest request) {
+    // Construct JSON request.
+    //
+    JSONObject message = new JSONObject();
+    try {
+      message.put("seq", serial);
+      message.put("request", request.id);
+    } catch (JSONException ex) {
+      Logger.error("Could not create JSON for request url: " + request.id);
+      return;
+    }
+    Logger.info("Sending request to VM: " + message.toString());
+    pendingRequests.put(serial, request);
+    webSocketHandler.sendTextMessage(message.toString());
+  }
+
+  private void delayRequest(String serial, VMRequest request) {
+    delayedRequests.put(serial, request);
   }
 
   private void cancelRequest(VMRequest request) {
@@ -184,16 +171,6 @@ public class VM extends WebSocketHandler implements Owner {
 
   public String relativeLink(String id) {
     return id;
-  }
-
-  class VMRequest {
-    public final String id;
-    public final RequestCallback callback;
-
-    VMRequest(String id, RequestCallback callback) {
-      this.id = id;
-      this.callback = callback;
-    }
   }
 }
 

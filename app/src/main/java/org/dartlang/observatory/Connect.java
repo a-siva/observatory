@@ -1,3 +1,7 @@
+// Copyright (c) 2014, the Dart project authors.  Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
 package org.dartlang.observatory;
 
 import android.app.Activity;
@@ -18,8 +22,9 @@ import org.dartlang.service.Response;
 import org.dartlang.service.VM;
 
 /**
- * The Connect Activity is the bottom of the activity stack. The activity is responsible for
- * delegating all network activity onto the UI thread.
+ * The Connect Activity is the bottom of the activity stack. The activity is responsible for:
+ * 1) Providing the UI for connecting to a VM.
+ * 2) Delegating all network activity onto the UI thread.
  */
 public class Connect extends Activity implements VM.EventListener {
   private final String defaultAddress = "10.0.2.2:8181";
@@ -28,7 +33,6 @@ public class Connect extends Activity implements VM.EventListener {
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
-    Logger.info("Connect.onCreate");
     super.onCreate(savedInstanceState);
     setContentView(R.layout.activity_connect);
     addressEditText = (EditText)findViewById(R.id.vm_address);
@@ -187,5 +191,4 @@ public class Connect extends Activity implements VM.EventListener {
     Intent launchVM = new Intent(context, VMView.class);
     startActivity(launchVM);
   }
-
 }
