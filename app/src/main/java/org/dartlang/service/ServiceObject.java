@@ -6,8 +6,11 @@ package org.dartlang.service;
 
 import org.json.JSONObject;
 
+import java.util.Date;
+
 abstract public class ServiceObject extends Response {
   protected Owner owner;
+  protected Date updateTime;
   protected String id;
   protected String type;
   protected String vmType;
@@ -20,6 +23,11 @@ abstract public class ServiceObject extends Response {
   }
 
   public VM getVM() {
+    if (owner == null) {
+      // Special case for VM.
+      assert this instanceof VM;
+      return (VM)this;
+    }
     return owner.getVM();
   }
 
@@ -44,6 +52,15 @@ abstract public class ServiceObject extends Response {
     return id.startsWith("@");
   }
 
+  public String commonToString() {
+    String common = "ID=" + getId();
+    common += " TYPE=" + getType();
+    common += " VM_TYPE=" + getVMType();
+    common += " UPDATED AT " + updateTime.toString();
+    return common;
+  }
+
+
   protected static String stripRef(String id) {
     if (!hasRef(id)) {
       return id;
@@ -51,26 +68,28 @@ abstract public class ServiceObject extends Response {
     return id.substring(1);
   }
 
+  protected void updateCommon(JSONObject object) {
+    id = Response.getIdFromMap(object);
+    type = Response.getTypeFromMap(object);
+    vmType = Response.getTypeFromMap(object);
+    updateTime = new Date();
+  }
+
   abstract protected void update(JSONObject object);
 
   public void load(final ResponseCallback callback) {
     if (isLoaded()) {
       if (callback != null) {
-        callback.onResponse(getId(), this);
+        callback.onResponse(this);
       }
     }
     reload(callback);
   }
 
   public void reload(final ResponseCallback callback) {
-    VM vm = owner.getVM();
-    if (vm == null) {
-      if (callback != null) {
-        // TODO(johnmccutchan): Indicate load failed somehow.
-        callback.onResponse(getId(), this);
-      }
-      return;
-    }
+    VM vm = getVM();
+    // All ServiceObjects have a VM.
+    assert vm != null;
     Connection connection = vm.connection;
     connection.get(getLink(), owner, callback);
   }

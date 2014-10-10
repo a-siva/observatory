@@ -5,5 +5,5 @@
 package org.dartlang.service;
 
 public interface ResponseCallback {
-  public void onResponse(String id, Response response);
+  public void onResponse(Response response);
 }

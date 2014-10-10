@@ -37,14 +37,16 @@ public class ObservatoryApplication extends Application {
       return vm;
     }
     if (connection == null) {
+      Logger.error("No connection");
       return null;
     }
     connection.get("vm", null, new ResponseCallback() {
       @Override
-      public void onResponse(String id, Response response) {
-        // Capture VM.
+      public void onResponse(Response response) {
+        // Capture VM
+        Logger.info("Fetched VM");
         setVM((VM)response);
-        callback.onResponse(id, response);
+        callback.onResponse(response);
       }
     });
     return null;

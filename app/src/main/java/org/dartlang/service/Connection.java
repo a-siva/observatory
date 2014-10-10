@@ -15,17 +15,28 @@ import de.tavendo.autobahn.WebSocketConnection;
 import de.tavendo.autobahn.WebSocketException;
 import de.tavendo.autobahn.WebSocketHandler;
 
+// A connection to the Dart VM Service protocol.
 public class Connection extends WebSocketHandler {
   public final WebSocketConnection webSocket = new WebSocketConnection();
   private boolean disconnectForced = false;
   private boolean didConnect = false;
   public final EventListener listener;
   public final String uri;
+  private final Map<String, Request> pendingRequests = new HashMap<>();
+  private final Map<String, Request> delayedRequests = new HashMap<>();
+  private int nextRequestId = 0;
 
   public interface EventListener {
-    public void onConnectionFailed(final Connection connection);
-    public void onConnection(final Connection connection);
+    // Network connection attempt failed.
+    public void onConnectFailed(final Connection connection,
+                                final String message);
+    // Network connection established.
+    public void onConnect(final Connection connection);
+    // App initiated disconnect.
+    public void onDisconnect(final Connection connection);
+    // Network connection lost.
     public void onConnectionLost(final Connection connection);
+    // WebSocket response.
     public void onResponse(final Connection connection,
                            final Owner owner,
                            final ResponseCallback callback,
@@ -38,6 +49,7 @@ public class Connection extends WebSocketHandler {
   public void disconnect() {
     if (webSocket.isConnected()) {
       disconnectForced = true;
+      listener.onDisconnect(this);
       webSocket.disconnect();
     }
   }
@@ -52,59 +64,9 @@ public class Connection extends WebSocketHandler {
       webSocket.connect(uri, this);
     } catch (WebSocketException ex) {
       Logger.info("WebSocket connect call failed: " + ex.toString());
-      listener.onConnectionFailed(this);
+      listener.onConnectFailed(this, ex.toString());
     }
   }
-
-  public void onOpen() {
-    assert didConnect == false;
-    didConnect = true;
-    sendAllDelayedRequests();
-    listener.onConnection(this);
-  }
-
-  public void onClose(int code, String reason) {
-    cancelAllRequests();
-    if (code == CLOSE_CANNOT_CONNECT) {
-      listener.onConnectionFailed(this);
-    } else {
-      listener.onConnectionLost(this);
-    }
-  }
-
-  public void onTextMessage(String response) {
-    JSONObject map;
-
-    try {
-      map = new JSONObject(response);
-    } catch (JSONException e) {
-      Logger.error("JSON Exception: " + e.toString());
-      return;
-    }
-    String serial = map.optString("seq", null);
-    if (serial == null) {
-      Logger.warning("Event response handling not implemented yet.");
-      return;
-    }
-    Request request = pendingRequests.remove(serial);
-    if (request == null) {
-      Logger.error("No pending request with serial: " + serial);
-      return;
-    }
-    String responseString = map.optString("response", null);
-    try {
-      map = new JSONObject(responseString);
-    } catch (JSONException e) {
-      map = null;
-      Logger.error("JSON Exception: " + e.toString());
-    }
-
-    listener.onResponse(this, request.owner, request.callback, request.id, map);
-  }
-
-  private final Map<String, Request> pendingRequests = new HashMap<>();
-  private final Map<String, Request> delayedRequests = new HashMap<>();
-  private int requestSerial = 0;
 
   public interface RequestCallback {
     public void onResponse(JSONObject response);
@@ -122,38 +84,55 @@ public class Connection extends WebSocketHandler {
     }
   }
 
-  private void sendRequest(String serial, Request request) {
+  private JSONObject makeServiceExceptionMap(final JSONObject response,
+                                             final String kind,
+                                             final String exception) {
+    JSONObject serviceException = new JSONObject();
+    try {
+      serviceException.put("type", "ServiceException");
+      serviceException.put("id", "");
+      serviceException.put("kind", kind);
+      serviceException.put("response", response);
+      serviceException.put("exception", exception);
+    } catch (JSONException ex) {
+      Logger.error("makeServiceExceptionResponse exception: " + ex.toString());
+    }
+    return serviceException;
+  }
+
+  private void sendRequest(String requestId, Request request) {
     // Construct JSON request.
     //
     JSONObject message = new JSONObject();
     try {
-      message.put("seq", serial);
+      message.put("seq", requestId);
       message.put("request", request.id);
     } catch (JSONException ex) {
       Logger.error("Could not create JSON for request url: " + request.id);
       return;
     }
-    pendingRequests.put(serial, request);
+    pendingRequests.put(requestId, request);
     webSocket.sendTextMessage(message.toString());
   }
 
-  private void delayRequest(String serial, Request request) {
-    delayedRequests.put(serial, request);
+  private void delayRequest(String requestId, Request request) {
+    delayedRequests.put(requestId, request);
   }
 
-  private void cancelRequest(Request request) {
+  private void cancelRequest(Request request, String reason) {
+    JSONObject map = makeServiceExceptionMap(null, "ConnectionClosed", reason);
     listener.onResponse(this, request.owner, request.callback, request.id, null);
   }
 
-  private void cancelAllRequests() {
+  private void cancelAllRequests(String reason) {
     for (Map.Entry<String, Request> entry : delayedRequests.entrySet()) {
       Request request = entry.getValue();
-      cancelRequest(request);
+      cancelRequest(request, reason);
     }
     delayedRequests.clear();
     for (Map.Entry<String, Request> entry : pendingRequests.entrySet()) {
       Request request = entry.getValue();
-      cancelRequest(request);
+      cancelRequest(request, reason);
     }
     pendingRequests.clear();
   }
@@ -168,27 +147,75 @@ public class Connection extends WebSocketHandler {
 
   public void get(String id, Owner owner, ResponseCallback callback) {
     Request request = new Request(id, owner, callback);
-    String serial = Integer.toString(requestSerial++);
+    String requestId = Integer.toString(nextRequestId++);
     if (didConnect) {
       if (isConnected()) {
         // Send immediately.
-        sendRequest(serial, request);
+        sendRequest(requestId, request);
       } else {
         // Lost connection. Cancel immediately.
-        cancelRequest(request);
+        cancelRequest(request, "No connection");
       }
     } else {
       // Queue request for connection.
       assert isConnected() == false;
-      delayRequest(serial, request);
+      delayRequest(requestId, request);
     }
   }
 
+  public void onOpen() {
+    assert didConnect == false;
+    didConnect = true;
+    sendAllDelayedRequests();
+    listener.onConnect(this);
+  }
+
+  public void onClose(int code, String reason) {
+    cancelAllRequests(reason);
+    if (disconnectForced) {
+      // Handled in disconnect().
+      return;
+    } else if (code == CLOSE_CANNOT_CONNECT) {
+      listener.onConnectFailed(this, reason);
+    } else {
+      listener.onConnectionLost(this);
+    }
+  }
+
+  public void onTextMessage(String message) {
+    JSONObject map;
+
+    try {
+      map = new JSONObject(message);
+    } catch (JSONException e) {
+      Logger.error("JSON Exception: " + e.toString());
+      return;
+    }
+    String requestId = map.optString("seq", null);
+    if (requestId == null) {
+      Logger.warning("Event response handling not implemented yet.");
+      return;
+    }
+    Request request = pendingRequests.remove(requestId);
+    if (request == null) {
+      Logger.error("No pending request with request id: " + requestId);
+      return;
+    }
+    String response = map.optString("response", null);
+    try {
+      map = new JSONObject(response);
+    } catch (JSONException ex) {
+      map = makeServiceExceptionMap(map, "JSONException", ex.toString());
+    }
+
+    listener.onResponse(this, request.owner, request.callback, request.id, map);
+  }
+
   public void onRawTextMessage(byte[] payload) {
-    assert false;
+    throw new UnsupportedOperationException("");
   }
 
   public void onBinaryMessage(byte[] payload) {
-    assert false;
+    throw new UnsupportedOperationException("");
   }
 }

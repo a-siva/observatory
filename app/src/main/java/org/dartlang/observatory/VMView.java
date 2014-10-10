@@ -22,6 +22,7 @@ public class VMView extends Activity implements ResponseCallback {
   private TextView version;
   private TextView targetCPU;
   private TextView hostCPU;
+  private TextView serviceCommon;
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -30,23 +31,20 @@ public class VMView extends Activity implements ResponseCallback {
     version = (TextView)findViewById(R.id.version);
     targetCPU = (TextView)findViewById(R.id.target_cpu);
     hostCPU = (TextView)findViewById(R.id.host_cpu);
+    serviceCommon = (TextView)findViewById(R.id.service_common);
     app = (ObservatoryApplication)getApplication();
-    Logger.info("VMView.onCreate");
     loadVM();
   }
 
   void loadVM() {
     vm = app.getVM(this);
     if (vm != null) {
-      Logger.info("VMView.reload");
       vm.reload(this);
       return;
     }
   }
 
-  public void onResponse(String id, Response response) {
-    Logger.info("VMView.onResponse");
-    assert id.equals("vm");
+  public void onResponse(Response response) {
     vm = (VM)response;
     updateView();
   }
@@ -54,14 +52,16 @@ public class VMView extends Activity implements ResponseCallback {
   private void updateView() {
     updateActionBar();
     if (vm == null) {
-      version.setText("");
+      version.setText("vm is NULL");
       targetCPU.setText("");
       hostCPU.setText("");
+      serviceCommon.setText("");
       return;
     }
     version.setText(vm.version);
     targetCPU.setText(vm.targetCPU);
     hostCPU.setText(vm.hostCPU);
+    serviceCommon.setText(vm.commonToString());
   }
 
   private void updateActionBar() {

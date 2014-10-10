@@ -27,7 +27,9 @@ import org.json.JSONObject;
  * The Connect Activity is the bottom of the activity stack. The activity is
  * responsible for:
  * 1) Providing the UI for connecting to the service.
- * 2) Delegating all network activity onto the UI thread.
+ * 2) Delegating all network activity onto the UI thread. This ensures all
+ * modifications of ServiceObject and Activity instances are isolated to a
+ * single thread.
  */
 public class Connect extends Activity implements Connection.EventListener {
   private final String defaultAddress = "10.0.2.2:8181";
@@ -115,7 +117,7 @@ public class Connect extends Activity implements Connection.EventListener {
   }
 
   /* VM.EventListener interface */
-  public void onConnectionFailed(final Connection connection) {
+  public void onConnectFailed(final Connection connection, String reason) {
     final ObservatoryApplication app = (ObservatoryApplication)getApplication();
     runOnUiThread(new Runnable() {
       @Override
@@ -127,7 +129,7 @@ public class Connect extends Activity implements Connection.EventListener {
     });
   }
 
-  public void onConnection(final Connection connection) {
+  public void onConnect(final Connection connection) {
     final ObservatoryApplication app = (ObservatoryApplication)getApplication();
     final Context context = getApplicationContext();
 
@@ -143,6 +145,20 @@ public class Connect extends Activity implements Connection.EventListener {
     });
   }
 
+  public void onDisconnect(final Connection connection) {
+    final ObservatoryApplication app = (ObservatoryApplication)getApplication();
+    final Context context = getApplicationContext();
+
+    runOnUiThread(new Runnable() {
+      @Override
+      public void run() {
+        toast("Disconnected from " + connection.uri);
+        app.setConnection(null);
+        updateConnectionLabel(null);
+      }
+    });
+  }
+
   public void onConnectionLost(final Connection connection) {
     final ObservatoryApplication app = (ObservatoryApplication)getApplication();
     final Context context = getApplicationContext();
@@ -150,7 +166,7 @@ public class Connect extends Activity implements Connection.EventListener {
     runOnUiThread(new Runnable() {
       @Override
       public void run() {
-        toast("Connection to " + connection.uri + " lost");
+        toast("Lost connection to " + connection.uri);
         app.setConnection(null);
         updateConnectionLabel(null);
       }
@@ -168,13 +184,16 @@ public class Connect extends Activity implements Connection.EventListener {
     runOnUiThread(new Runnable() {
       @Override
       public void run() {
-        // Get response object.
+        // Get response object. This must be done on the UI thread so that
+        // all access to ServiceObjects (e.g. VM, Isolate, etc) is isolated
+        // to a single thread.
         Response response = Response.makeResponse(connection,
                                                   owner,
                                                   id,
                                                   responseMap);
-        // Call callback.
-        callback.onResponse(id, response);
+        // Call callback. This must be done on the UI thread because most
+        // of these callbacks will update ServiceObjects or an Activity.
+        callback.onResponse(response);
       }
     });
   }

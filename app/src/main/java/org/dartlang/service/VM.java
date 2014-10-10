@@ -20,8 +20,6 @@ public class VM extends ServiceObject implements Owner {
   public VM(Connection connection) {
     super(null);
     this.connection = connection;
-    id = "vm";
-    setOwner(this);
   }
 
   public VM getVM() {
@@ -37,10 +35,10 @@ public class VM extends ServiceObject implements Owner {
   }
 
   protected void update(JSONObject object) {
+    updateCommon(object);
     targetCPU = object.optString("targetCPU");
     hostCPU = object.optString("hostCPU");
     version = object.optString("version");
-    Logger.info(targetCPU + hostCPU + version);
   }
 
   public void get(String id, final ResponseCallback callback) {
