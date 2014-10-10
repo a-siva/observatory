@@ -19,14 +19,17 @@ import android.widget.Toast;
 
 import org.dartlang.service.Owner;
 import org.dartlang.service.Response;
-import org.dartlang.service.VM;
+import org.dartlang.service.ResponseCallback;
+import org.dartlang.service.Connection;
+import org.json.JSONObject;
 
 /**
- * The Connect Activity is the bottom of the activity stack. The activity is responsible for:
- * 1) Providing the UI for connecting to a VM.
+ * The Connect Activity is the bottom of the activity stack. The activity is
+ * responsible for:
+ * 1) Providing the UI for connecting to the service.
  * 2) Delegating all network activity onto the UI thread.
  */
-public class Connect extends Activity implements VM.EventListener {
+public class Connect extends Activity implements Connection.EventListener {
   private final String defaultAddress = "10.0.2.2:8181";
   private EditText addressEditText;
   private TextView statusTextView;
@@ -68,28 +71,28 @@ public class Connect extends Activity implements VM.EventListener {
     });
 
     ObservatoryApplication app = (ObservatoryApplication)getApplication();
-    if (app.getVM() == null) {
+    if (app.getConnection() == null) {
       // Try and connect.
       connect(null);
     }
-    updateVMButton(app.getVM());
+    updateConnectionLabel(app.getConnection());
   }
 
-  private void connectToVM(String address) {
+  private void connectToService(String address) {
     final ObservatoryApplication app = (ObservatoryApplication)getApplication();
 
-    VM vm = app.getVM();
-    if (vm != null) {
-      Logger.info("Forcing disconnect from " + vm.uri);
-      vm.disconnect();
+    Connection connection = app.getConnection();
+    if (connection != null) {
+      Logger.info("Forcing disconnect from " + connection.uri);
+      connection.disconnect();
     }
-    Logger.info("Creating new VM for " + address);
-    vm = new VM(this, address);
+    Logger.info("Connecting to " + address);
+    connection = new Connection(this, address);
   }
 
   public void connect(View view) {
     String address = addressEditText.getText().toString();
-    connectToVM(address);
+    connectToService(address);
   }
 
   @Override
@@ -112,56 +115,66 @@ public class Connect extends Activity implements VM.EventListener {
   }
 
   /* VM.EventListener interface */
-  public void onConnectionFailed(final VM vm) {
+  public void onConnectionFailed(final Connection connection) {
     final ObservatoryApplication app = (ObservatoryApplication)getApplication();
     runOnUiThread(new Runnable() {
       @Override
       public void run() {
-        toast("Could not connect to " + vm.uri);
-        app.setVM(null);
-        updateVMButton(null);
+        toast("Could not connect to " + connection.uri);
+        app.setConnection(null);
+        updateConnectionLabel(null);
       }
     });
   }
 
-  public void onConnection(final VM vm) {
+  public void onConnection(final Connection connection) {
     final ObservatoryApplication app = (ObservatoryApplication)getApplication();
     final Context context = getApplicationContext();
 
     runOnUiThread(new Runnable() {
       @Override
       public void run() {
-        toast("Connected to " + vm.uri);
-        app.setVM(vm);
-        updateVMButton(vm);
+        toast("Connected to " + connection.uri);
+        app.setConnection(connection);
+        updateConnectionLabel(connection);
         Intent launchVM = new Intent(context, VMView.class);
         startActivity(launchVM);
       }
     });
   }
 
-  public void onConnectionLost(final VM vm) {
+  public void onConnectionLost(final Connection connection) {
     final ObservatoryApplication app = (ObservatoryApplication)getApplication();
     final Context context = getApplicationContext();
 
     runOnUiThread(new Runnable() {
       @Override
       public void run() {
-        toast("Connection to " + vm.uri + " lost");
-        app.setVM(null);
-        updateVMButton(null);
+        toast("Connection to " + connection.uri + " lost");
+        app.setConnection(null);
+        updateConnectionLabel(null);
       }
     });
   }
 
-  public void onResponse(final VM vm, final Owner.RequestCallback callback, final Response response) {
+  public void onResponse(final Connection connection,
+                         final Owner owner,
+                         final ResponseCallback callback,
+                         final String id,
+                         final JSONObject responseMap) {
     final ObservatoryApplication app = (ObservatoryApplication)getApplication();
     final Context context = getApplicationContext();
 
     runOnUiThread(new Runnable() {
       @Override
       public void run() {
-        callback.onResponse(response);
+        // Get response object.
+        Response response = Response.makeResponse(connection,
+                                                  owner,
+                                                  id,
+                                                  responseMap);
+        // Call callback.
+        callback.onResponse(id, response);
       }
     });
   }
@@ -173,17 +186,17 @@ public class Connect extends Activity implements VM.EventListener {
     toast.show();
   }
 
-  private void updateVMButton(VM vm) {
-    if (vm == null) {
-      statusTextView.setText(R.string.connect_to_vm);
+  private void updateConnectionLabel(Connection connection) {
+    if (connection == null) {
+      statusTextView.setText(R.string.connect_to_service);
     } else {
-      statusTextView.setText(vm.uri.toString());
+      statusTextView.setText(connection.uri.toString());
     }
   }
 
   private void navigateVMButton() {
     final ObservatoryApplication app = (ObservatoryApplication)getApplication();
-    if (app.getVM() == null) {
+    if (!app.hasConnection()) {
       // Do nothing.
       return;
     }

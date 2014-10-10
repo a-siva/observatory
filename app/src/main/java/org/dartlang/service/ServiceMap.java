@@ -63,7 +63,7 @@ public class ServiceMap extends ServiceObject {
     return map.entrySet();
   }
 
-  protected static ServiceMap fromJSONObject(JSONObject obj) {
-    return null;
+  protected void update(JSONObject object) {
+
   }
 }

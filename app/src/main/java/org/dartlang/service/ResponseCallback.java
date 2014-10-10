@@ -4,8 +4,6 @@
 
 package org.dartlang.service;
 
-abstract public class DartObject extends ServiceObject {
-  DartObject(Owner owner) {
-    super(owner);
-  }
+public interface ResponseCallback {
+  public void onResponse(String id, Response response);
 }

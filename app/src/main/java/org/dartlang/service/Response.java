@@ -4,6 +4,8 @@
 
 package org.dartlang.service;
 
+import org.json.JSONObject;
+
 public class Response {
   public boolean isError() {
     return this instanceof ServiceError;
@@ -15,5 +17,25 @@ public class Response {
 
   public boolean isObject() {
     return this instanceof ServiceObject;
+  }
+
+  // Response factory.
+  public static Response makeResponse(Connection connection,
+                                      Owner owner,
+                                      String id,
+                                      JSONObject object) {
+    // Check if object isn't a service map -> error.
+    // Check if object is an service error -> error.
+    // Check if object is a service exception -> exception.
+
+    // Special case the VM.
+    if (id.equals("vm")) {
+      assert owner == null;
+      VM vm = new VM(connection);
+      vm.update(object);
+      return vm;
+    }
+
+    return owner.fromJSONObject(id, object);
   }
 }

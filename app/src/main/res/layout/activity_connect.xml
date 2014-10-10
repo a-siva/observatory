@@ -13,7 +13,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingBottom="16dp"
-        android:text="@string/connect_to_vm"
+        android:text="@string/connect_to_service"
         android:textSize="@dimen/large_text_size"/>
 
     <LinearLayout

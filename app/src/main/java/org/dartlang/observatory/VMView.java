@@ -9,28 +9,68 @@ import android.app.Activity;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.TextView;
 
+import org.dartlang.service.Response;
+import org.dartlang.service.ResponseCallback;
 import org.dartlang.service.VM;
 
 
-public class VMView extends Activity {
+public class VMView extends Activity implements ResponseCallback {
   private ObservatoryApplication app;
+  private VM vm;
+  private TextView version;
+  private TextView targetCPU;
+  private TextView hostCPU;
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     setContentView(R.layout.activity_vm_view);
+    version = (TextView)findViewById(R.id.version);
+    targetCPU = (TextView)findViewById(R.id.target_cpu);
+    hostCPU = (TextView)findViewById(R.id.host_cpu);
+    app = (ObservatoryApplication)getApplication();
+    Logger.info("VMView.onCreate");
+    loadVM();
+  }
+
+  void loadVM() {
+    vm = app.getVM(this);
+    if (vm != null) {
+      Logger.info("VMView.reload");
+      vm.reload(this);
+      return;
+    }
+  }
+
+  public void onResponse(String id, Response response) {
+    Logger.info("VMView.onResponse");
+    assert id.equals("vm");
+    vm = (VM)response;
+    updateView();
+  }
+
+  private void updateView() {
     updateActionBar();
+    if (vm == null) {
+      version.setText("");
+      targetCPU.setText("");
+      hostCPU.setText("");
+      return;
+    }
+    version.setText(vm.version);
+    targetCPU.setText(vm.targetCPU);
+    hostCPU.setText(vm.hostCPU);
   }
 
   private void updateActionBar() {
-    app = (ObservatoryApplication) getApplication();
-    VM vm = app.getVM();
+    assert app != null;
     ActionBar actionBar = getActionBar();
     if (vm == null) {
       actionBar.setTitle("No VM");
     } else {
-      actionBar.setTitle(app.vm.uri);
+      actionBar.setTitle(app.connection.uri);
     }
   }
 

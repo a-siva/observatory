@@ -4,6 +4,7 @@
 
 package org.dartlang.service;
 
+import org.dartlang.observatory.Logger;
 import org.json.JSONObject;
 
 public class Isolate extends ServiceObject implements Owner {
@@ -13,14 +14,18 @@ public class Isolate extends ServiceObject implements Owner {
   }
 
   public VM getVM() {
-    return owner.getVM();
+    return (VM)owner;
   }
 
   public Isolate getIsolate() {
     return this;
   }
 
-  public ServiceObject fromJSONObject(JSONObject obj) {
+  protected void update(JSONObject object) {
+  }
+
+  public ServiceObject fromJSONObject(String id, JSONObject object) {
+    Logger.info("fromJSONObject " + id);
     return null;
   }
 
@@ -28,7 +33,10 @@ public class Isolate extends ServiceObject implements Owner {
     return "/" + this.getId() + "/" + id;
   }
 
-  public void get(String id, RequestCallback callback) {
-    getVM().get(relativeLink(id), callback);
+  public void get(String id, final ResponseCallback callback) {
+    assert callback != null;
+    VM vm = getVM();
+    assert vm != null;
+    vm.connection.get(relativeLink(id), this, callback);
   }
 }

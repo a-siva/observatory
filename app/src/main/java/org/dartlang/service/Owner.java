@@ -4,10 +4,11 @@
 
 package org.dartlang.service;
 
+import org.dartlang.service.ResponseCallback;
 import org.json.JSONObject;
 
 public interface Owner {
-  public ServiceObject fromJSONObject(JSONObject object);
+  public ServiceObject fromJSONObject(String id, JSONObject object);
 
   public VM getVM();
 
@@ -15,9 +16,5 @@ public interface Owner {
 
   public String relativeLink(String id);
 
-  public void get(String id, RequestCallback callback);
-
-  public static interface RequestCallback {
-    public void onResponse(Response response);
-  }
+  public void get(String id, ResponseCallback callback);
 }

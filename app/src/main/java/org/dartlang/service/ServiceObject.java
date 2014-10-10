@@ -6,7 +6,7 @@ package org.dartlang.service;
 
 import org.json.JSONObject;
 
-public class ServiceObject extends Response {
+abstract public class ServiceObject extends Response {
   protected Owner owner;
   protected String id;
   protected String type;
@@ -31,10 +31,6 @@ public class ServiceObject extends Response {
     this.owner = owner;
   }
 
-  public interface LoadListener {
-    public void onLoad(ServiceObject object);
-  }
-
   protected static boolean isServiceMap(JSONObject object) {
     if (object == null) {
       return false;
@@ -55,18 +51,32 @@ public class ServiceObject extends Response {
     return id.substring(1);
   }
 
-  protected static ServiceObject fromMap(Owner owner, JSONObject object) {
-    return null;
-  }
+  abstract protected void update(JSONObject object);
 
-  public void load(LoadListener loadListener) {
+  public void load(final ResponseCallback callback) {
     if (isLoaded()) {
-      loadListener.onLoad(this);
+      if (callback != null) {
+        callback.onResponse(getId(), this);
+      }
     }
-    reload(loadListener);
+    reload(callback);
   }
 
-  public void reload(LoadListener loadListener) {
+  public void reload(final ResponseCallback callback) {
+    VM vm = owner.getVM();
+    if (vm == null) {
+      if (callback != null) {
+        // TODO(johnmccutchan): Indicate load failed somehow.
+        callback.onResponse(getId(), this);
+      }
+      return;
+    }
+    Connection connection = vm.connection;
+    connection.get(getLink(), owner, callback);
+  }
+
+  public void reload() {
+    reload(null);
   }
 
   public Owner getOwner() {
@@ -75,6 +85,13 @@ public class ServiceObject extends Response {
 
   public String getId() {
     return id;
+  }
+
+  public String getLink() {
+    if (owner == null) {
+      return getId();
+    }
+    return owner.relativeLink(getId());
   }
 
   public String getType() {

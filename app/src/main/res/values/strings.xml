@@ -2,7 +2,7 @@
 <resources>
 
     <string name="app_name">Observatory</string>
-    <string name="connect_to_vm">Connect to a Dart VM</string>
+    <string name="connect_to_service">Connect to a Dart VM</string>
     <string name="default_vm_address">10.0.2.2:8181</string>
     <string name="action_connect">Connect</string>
     <string name="action_settings">Settings</string>
